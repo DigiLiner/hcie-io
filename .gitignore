@@ -1,0 +1,11 @@
+/node_modules/
+/.vscode/
+/.vs/
+/.idea/
+/dist/
+/dist-web/
+/tauri-dist/
+/.history/
+/.cursor/
+# Tauri build artifacts
+/src-tauri/target/
