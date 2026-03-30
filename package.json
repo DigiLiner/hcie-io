@@ -1,0 +1,25 @@
+{
+  "name": "@hcie/io",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean"
+  },
+  "dependencies": {
+    "@hcie/core": "file:../hcie-core",
+    "@hcie/shared": "file:../hcie-shared",
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2"
+  }
+}
