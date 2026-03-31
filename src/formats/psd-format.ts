@@ -20,22 +20,10 @@ export class PsdFormat implements IImageFormat {
     const width = decodedLayers[0]?.canvas?.width || 0;
     const height = decodedLayers[0]?.canvas?.height || 0;
 
-    // Convert OffscreenCanvas to HTMLCanvasElement if necessary
-    const convertedLayers = decodedLayers.map(layer => {
-      let canvas = layer.canvas;
-      if (canvas instanceof OffscreenCanvas) {
-        // Convert to HTMLCanvasElement
-        canvas = convertOffscreenCanvasToHTMLCanvas(canvas);
-      }
-      return {
-        ...layer,
-        canvas: canvas
-      };
-    });
     return {
       width,
       height,
-      layers: convertedLayers.map(layer => ({
+      layers: decodedLayers.map(layer => ({
         name: layer.name,
         canvas: layer.canvas,
         visible: layer.visible,

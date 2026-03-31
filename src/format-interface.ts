@@ -1,10 +1,12 @@
 
+import { CanvasLike } from "@hcie/shared";
+
 /**
  * Data structure for a single decoded layer.
  */
 export interface LayerData {
   name: string;
-  canvas: HTMLCanvasElement | ImageData;
+  canvas: CanvasLike | ImageData;
   visible: boolean;
   opacity: number;
   blendMode: string;
