@@ -1,13 +1,10 @@
 {
-  "extends": "../hcie/tsconfig.base.json",
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "./dist",
+    "composite": true,
     "rootDir": "./src",
-    "composite": true
+    "outDir": "./dist"
   },
-  "include": ["src/**/*"],
-  "references": [
-    { "path": "../hcie-core" },
-    { "path": "../hcie-shared" }
-  ]
+  "include": ["src/**/*"]
 }
+

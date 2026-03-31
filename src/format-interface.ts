@@ -1,3 +1,26 @@
+
+/**
+ * Data structure for a single decoded layer.
+ */
+export interface LayerData {
+  name: string;
+  canvas: HTMLCanvasElement | ImageData;
+  visible: boolean;
+  opacity: number;
+  blendMode: string;
+  x: number;
+  y: number;
+}
+
+/**
+ * Data structure for a decoded multi-layered image.
+ */
+export interface DecodedImage {
+  width: number;
+  height: number;
+  layers: LayerData[];
+}
+
 /**
  * Represents a single image file format (PNG, PSD, etc.)
  */
@@ -23,10 +46,9 @@ export interface IImageFormat {
   canWrite: boolean;
 
   /**
-   * Reads a file from a binary buffer and returns one or more layers.
-   * Multi-layer formats return an array; single-layer formats return a single-element array.
+   * Reads a file from a binary buffer and returns a decoded image object.
    */
-  read(buffer: ArrayBuffer): Promise<ImageData[]>;
+  read(buffer: ArrayBuffer): Promise<DecodedImage>;
 
   /**
    * Writes image data to a binary buffer in the specific format.

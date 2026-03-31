@@ -4,7 +4,7 @@
  * Custom binary parser for standard raster layers (XCF v0-v14).
  */
 
-import { IImageFormat } from "../format-interface";
+import { IImageFormat, DecodedImage } from "../format-interface";
 
 export class XcfFormat implements IImageFormat {
   readonly name = "GIMP";
@@ -12,7 +12,7 @@ export class XcfFormat implements IImageFormat {
   readonly canRead = true;
   readonly canWrite = false;
 
-  async read(buffer: ArrayBuffer): Promise<ImageData[]> {
+  async read(buffer: ArrayBuffer): Promise<DecodedImage> {
     const view = new DataView(buffer);
     const magic = new TextDecoder().decode(buffer.slice(0, 9));
     if (magic !== "gimp xcf ") {
@@ -29,11 +29,11 @@ export class XcfFormat implements IImageFormat {
     // Header properties
     const width = view.getUint32(14);
     const height = view.getUint32(18);
-    const baseType = view.getUint32(22); // 0: RGB, 1: Grayscale, 2: Indexed
 
     // Skip image properties to get to the layer list
-    let current = 26;
-    while (current < buffer.byteLength) {
+    // In XCF v11+, there's a 4-byte 'precision' field after base_type
+    let current = is64Bit ? 30 : 26;
+    while (current < buffer.byteLength - 8) {
       const propType = view.getUint32(current);
       const propLen = view.getUint32(current + 4);
       if (propType === 0) { // PROP_END
@@ -55,19 +55,30 @@ export class XcfFormat implements IImageFormat {
       current += offsetSize;
     }
 
-    const layers: ImageData[] = [];
-    // GIMP stores layers top-to-bottom in the pointer list, but canvas stack is bottom-to-top.
-    // We'll reverse them later or handle as needed. Let's keep them in order for now.
+    const layers: any[] = [];
     for (const ptr of layerPointers) {
       try {
         const layer = await this.parseLayer(view, buffer, ptr, is64Bit);
-        if (layer) layers.push(layer);
+        if (layer) {
+            layers.push({
+                name: (layer as any).layerName || "Layer",
+                canvas: layer,
+                visible: (layer as any).isVisible !== false,
+                opacity: (layer as any).opacity / 255 || 1.0,
+                blendMode: (layer as any).blendMode || 'source-over',
+                x: 0, y: 0
+            });
+        }
       } catch (e) {
         console.warn("Failed to parse GIMP layer at offset", ptr, e);
       }
     }
 
-    return layers.reverse(); // Standard reverse for HCIE layer stack
+    return {
+        width,
+        height,
+        layers: layers.reverse()
+    };
   }
 
   private async parseLayer(view: DataView, buffer: ArrayBuffer, offset: number, is64Bit: boolean): Promise<ImageData | null> {
@@ -189,17 +200,27 @@ export class XcfFormat implements IImageFormat {
       const out = new Uint8Array(expectedChannelSize);
       let outPos = 0;
       while (outPos < expectedChannelSize && inPos < data.length) {
-        const n = new Int8Array([data[inPos++]])[0];
-        if (n >= 0 && n <= 126) {
-          const count = n + 1;
+        const b = data[inPos++];
+        if (b < 127) {
+          const count = b + 1;
           for (let i = 0; i < count && outPos < expectedChannelSize; i++) {
             out[outPos++] = data[inPos++];
           }
-        } else if (n === -128) {
-          // NOP in some RLE variants, but GIMP might use it. Skip for safety.
-          continue; 
+        } else if (b === 127) {
+          const count = (data[inPos] << 8 | data[inPos + 1]) + 1;
+          inPos += 2;
+          for (let i = 0; i < count && outPos < expectedChannelSize; i++) {
+            out[outPos++] = data[inPos++];
+          }
+        } else if (b === 128) {
+          const count = (data[inPos] << 8 | data[inPos + 1]) + 1;
+          inPos += 2;
+          const val = data[inPos++];
+          for (let i = 0; i < count && outPos < expectedChannelSize; i++) {
+            out[outPos++] = val;
+          }
         } else {
-          const count = -n + 1;
+          const count = 256 - b + 1;
           const val = data[inPos++];
           for (let i = 0; i < count && outPos < expectedChannelSize; i++) {
             out[outPos++] = val;

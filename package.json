@@ -12,14 +12,22 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "clean": "tsc -b --clean"
+    "clean": "tsc -b --clean",
+    "dev": "vite",
+    "test": "vitest run"
   },
   "dependencies": {
     "@hcie/core": "file:../hcie-core",
     "@hcie/shared": "file:../hcie-shared",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "lzfjs": "^1.0.1"
   },
   "devDependencies": {
-    "typescript": "^6.0.2"
+    "@types/jsdom": "^28.0.1",
+    "@types/node": "^25.5.0",
+    "jsdom": "^26.0.0",
+    "typescript": "^6.0.2",
+    "vite": "^6.2.1",
+    "vitest": "^3.0.8"
   }
 }

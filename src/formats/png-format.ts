@@ -1,4 +1,4 @@
-import { IImageFormat } from "../format-interface";
+import { IImageFormat, DecodedImage } from "../format-interface";
 
 /**
  * Adapter for reading and writing PNG images using the browser's Canvas API.
@@ -12,7 +12,7 @@ export class PngFormat implements IImageFormat {
   /**
    * Reads a PNG file by creating an ImageBitmap from the blob.
    */
-  async read(buffer: ArrayBuffer): Promise<ImageData[]> {
+  async read(buffer: ArrayBuffer): Promise<DecodedImage> {
     const blob = new Blob([buffer], { type: "image/png" });
     const bitMap = await createImageBitmap(blob);
     const canvas = document.createElement("canvas");
@@ -22,7 +22,18 @@ export class PngFormat implements IImageFormat {
     if (!ctx) throw new Error("Could not create 2D context");
     ctx.drawImage(bitMap, 0, 0);
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    return [imageData];
+    return {
+      width: canvas.width,
+      height: canvas.height,
+      layers: [{
+        name: "Background",
+        canvas: imageData,
+        visible: true,
+        opacity: 1,
+        blendMode: 'source-over',
+        x: 0, y: 0
+      }]
+    };
   }
 
   /**

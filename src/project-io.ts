@@ -7,6 +7,7 @@
 import { g, layers, LayerClass, newDocument } from '@hcie/core';
 import type { BlendMode, Shape, LayerType } from '@hcie/shared';
 import { imageFormatRegistry } from './format-registry';
+import { DecodedImage } from './format-interface';
 
 interface SerializedLayer {
   name: string;
@@ -155,31 +156,45 @@ export class ProjectIO {
         throw new Error(`Unsupported or unreadable format: ${ext}`);
     }
 
-    const imageDataList = await format.read(buffer);
-    if (imageDataList.length === 0) {
-        throw new Error(`The format adapter for ${ext} returned no image data.`);
+    const decodedImage = await format.read(buffer);
+    if (!decodedImage || !decodedImage.layers || decodedImage.layers.length === 0) {
+        throw new Error(`The format adapter for ${ext} returned no valid image data.`);
     }
 
-    // Initialize document with first image size
-    const first = imageDataList[0];
-    newDocument(fileName, first.width, first.height);
+    // Initialize document with image size from DecodedImage
+    newDocument(fileName, decodedImage.width, decodedImage.height);
 
     // Add layers
     layers.length = 0;
-    for (let i = 0; i < imageDataList.length; i++) {
-        const imgData = imageDataList[i];
-        const layerName = (imgData as any).layerName || `Layer ${i + 1}`;
-        const layer = new LayerClass(layerName, imgData.width, imgData.height);
+    for (let i = 0; i < decodedImage.layers.length; i++) {
+        const layerData = decodedImage.layers[i];
+        const layerName = layerData.name || `Layer ${i + 1}`;
+        const canvasOrData = layerData.canvas;
         
-        // Respect metadata from format adapters
-        if ((imgData as any).isVisible !== undefined) {
-          layer.visible = (imgData as any).isVisible;
-        }
-        if ((imgData as any).opacity !== undefined) {
-          layer.opacity = (imgData as any).opacity;
+        let width = 0;
+        let height = 0;
+        if (canvasOrData instanceof ImageData) {
+            width = canvasOrData.width;
+            height = canvasOrData.height;
+        } else {
+            width = canvasOrData.width;
+            height = canvasOrData.height;
         }
 
-        (layer.ctx as CanvasRenderingContext2D).putImageData(imgData, 0, 0);
+        const layer = new LayerClass(layerName, width, height);
+        
+        // Respect metadata from format adapters
+        layer.visible = layerData.visible !== false;
+        layer.opacity = layerData.opacity ?? 1.0;
+        layer.blendMode = (layerData.blendMode as any) || 'source-over';
+        layer.x = layerData.x ?? 0;
+        layer.y = layerData.y ?? 0;
+
+        if (canvasOrData instanceof ImageData) {
+            (layer.ctx as CanvasRenderingContext2D).putImageData(canvasOrData, 0, 0);
+        } else {
+            (layer.ctx as CanvasRenderingContext2D).drawImage(canvasOrData, 0, 0);
+        }
         layers.push(layer);
     }
 

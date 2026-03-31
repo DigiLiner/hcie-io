@@ -1,0 +1,21 @@
+
+> @hcie/io@0.0.0 test
+> vitest run tests/xcf-debug.test.ts
+
+
+ RUN  v3.2.4 /home/hc/Belgeler/00_PROJECTS/Tauri/hcie-io
+
+stdout | tests/xcf-debug.test.ts > XCF Format Debugger Mock Test > should read XCF file without throwing errors
+Reading XCF: /home/hc/Belgeler/00_PROJECTS/Tauri/hcie-io/io-format-tests/gimp-color_test_1.xcf (1863848 bytes)
+
+stdout | tests/xcf-debug.test.ts > XCF Format Debugger Mock Test > should read XCF file without throwing errors
+Decoded successfully: 1024x1024, layers: 1
+Layer 0: color_test_128x128_png_1774831380143.png, visible: true, opacity: 1
+
+ ✓ tests/xcf-debug.test.ts (1 test) 238ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  16:23:46
+   Duration  865ms (transform 40ms, setup 0ms, collect 37ms, tests 238ms, environment 279ms, prepare 86ms)
+

@@ -4,7 +4,7 @@
  * Initial implementation for reading PDN metadata and preview.
  */
 
-import { IImageFormat } from "../format-interface";
+import { IImageFormat, DecodedImage } from "../format-interface";
 
 export class PdnFormat implements IImageFormat {
   readonly name = "Paint.NET";
@@ -12,7 +12,7 @@ export class PdnFormat implements IImageFormat {
   readonly canRead = true;
   readonly canWrite = false;
 
-  async read(buffer: ArrayBuffer): Promise<ImageData[]> {
+  async read(buffer: ArrayBuffer): Promise<DecodedImage> {
     const view = new DataView(buffer);
     const magic = new TextDecoder().decode(buffer.slice(0, 4));
     

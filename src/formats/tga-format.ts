@@ -3,7 +3,7 @@
  * @description TGA image format adapter supporting uncompressed 24/32-bit read/write.
  */
 
-import { IImageFormat } from "../format-interface";
+import { IImageFormat, DecodedImage } from "../format-interface";
 
 export class TgaFormat implements IImageFormat {
   readonly name = "Targa";
@@ -11,7 +11,7 @@ export class TgaFormat implements IImageFormat {
   readonly canRead = true;
   readonly canWrite = true;
 
-  async read(buffer: ArrayBuffer): Promise<ImageData[]> {
+  async read(buffer: ArrayBuffer): Promise<DecodedImage> {
     const view = new DataView(buffer);
     const header = {
       idLength: view.getUint8(0),
@@ -74,7 +74,18 @@ export class TgaFormat implements IImageFormat {
       }
     }
 
-    return [imageData];
+    return {
+      width: header.width,
+      height: header.height,
+      layers: [{
+        name: "Background",
+        canvas: imageData,
+        visible: true,
+        opacity: 1,
+        blendMode: 'source-over',
+        x: 0, y: 0
+      }]
+    };
   }
 
   private setPixel(data: Uint8ClampedArray, index: number, r: number, g: number, b: number, a: number, w: number, h: number, isTopDown: boolean) {

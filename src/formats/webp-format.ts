@@ -3,7 +3,7 @@
  * @description WebP image format adapter using native browser capabilities.
  */
 
-import { IImageFormat } from "../format-interface";
+import { IImageFormat, DecodedImage } from "../format-interface";
 
 export class WebpFormat implements IImageFormat {
   readonly name = "WebP";
@@ -11,17 +11,28 @@ export class WebpFormat implements IImageFormat {
   readonly canRead = true;
   readonly canWrite = true;
 
-  async read(buffer: ArrayBuffer): Promise<ImageData[]> {
+  async read(buffer: ArrayBuffer): Promise<DecodedImage> {
     const blob = new Blob([buffer], { type: "image/webp" });
-    const bitmap = await createImageBitmap(blob);
+    const bitMap = await createImageBitmap(blob);
     const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
+    canvas.width = bitMap.width;
+    canvas.height = bitMap.height;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Could not create 2D context");
-    
-    ctx.drawImage(bitmap, 0, 0);
-    return [ctx.getImageData(0, 0, canvas.width, canvas.height)];
+    ctx.drawImage(bitMap, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    return {
+      width: canvas.width,
+      height: canvas.height,
+      layers: [{
+        name: "Background",
+        canvas: imageData,
+        visible: true,
+        opacity: 1,
+        blendMode: 'source-over',
+        x: 0, y: 0
+      }]
+    };
   }
 
   async write(imageData: ImageData): Promise<ArrayBuffer> {

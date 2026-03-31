@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HCIE-IO Debugger</title>
+    <!-- PSD Dependencies for debugging -->
+    <script src="https://cdn.jsdelivr.net/npm/psd@3.2.0/dist/psd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ag-psd@14.4.4/dist/bundle.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #1e1e1e; color: #eee; }
+        .container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+        .controls { background: #2d2d2d; padding: 20px; border-radius: 8px; }
+        #canvas-preview { background: #333; border: 1px solid #444; width: auto; max-width: 512px; height: auto; min-height: 200px; display: block; margin: 0 auto; }
+        .file-list { margin-top: 20px; }
+        .file-item { padding: 8px; cursor: pointer; border-bottom: 1px solid #3d3d3d; }
+        .file-item:hover { background: #3d3d3d; }
+        .log-area { margin-top: 20px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto; background: black; padding: 10px; color: #0f0; }
+    </style>
+</head>
+<body>
+    <h1>HCIE-IO Format Debugger</h1>
+    <div class="container">
+        <div class="controls">
+            <h3>Load Image</h3>
+            <input type="file" id="file-input" accept=".psd,.kra,.xcf,.pdn,.png,.jpg,.jpeg,.bmp,.webp">
+            <p>Select a file to process using the @hcie/io library.</p>
+            
+            <div id="status">Ready.</div>
+            <div id="metadata"></div>
+            
+            <hr style="border: 1px solid #444; margin: 20px 0;">
+            <h3>Quick Format Tests</h3>
+            <p style="font-size: 11px; color: #888; margin-top: 0;">Requires named test files in /public (e.g. test.psd, test.bmp)</p>
+            <div id="quick-test-buttons" style="display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 15px;">
+                <button class="test-btn" data-ext=".psd" style="padding: 5px 10px; cursor: pointer;">PSD</button>
+                <button class="test-btn" data-ext=".kra" style="padding: 5px 10px; cursor: pointer;">KRA</button>
+                <button class="test-btn" data-ext=".xcf" style="padding: 5px 10px; cursor: pointer;">XCF</button>
+                <button class="test-btn" data-ext=".pdn" style="padding: 5px 10px; cursor: pointer;">PDN</button>
+                <button class="test-btn" data-ext=".png" style="padding: 5px 10px; cursor: pointer;">PNG</button>
+                <button class="test-btn" data-ext=".jpg" style="padding: 5px 10px; cursor: pointer;">JPG</button>
+                <button class="test-btn" data-ext=".bmp" style="padding: 5px 10px; cursor: pointer;">BMP</button>
+                <button class="test-btn" data-ext=".webp" style="padding: 5px 10px; cursor: pointer;">WEBP</button>
+                <button class="test-btn" data-ext=".gif" style="padding: 5px 10px; cursor: pointer;">GIF</button>
+                <button class="test-btn" data-ext=".tga" style="padding: 5px 10px; cursor: pointer;">TGA</button>
+                <button class="test-btn" data-ext=".ico" style="padding: 5px 10px; cursor: pointer;">ICO</button>
+            </div>
+
+            <h3>Automated Comparison</h3>
+            <button id="run-comparison" style="background: #007acc; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%;">
+                Run Krita Comparison Test
+            </button>
+            <button id="run-comparison-gimp" style="background: #2e7d32; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 10px;">
+                Run GIMP Comparison Test
+            </button>
+            <p style="font-size: 11px; color: #888; margin-top: 5px;">
+                Compares 'color_test_original.png' with specific test files.
+            </p>
+            
+            <div class="log-area" id="log-output">
+                Initialized.
+            </div>
+        </div>
+        <div class="display">
+            <h3>Canvas Preview</h3>
+            <canvas id="canvas-preview"></canvas>
+            
+            <div id="comparison-results" style="margin-top: 20px; display: none;">
+                <h3 style="margin-top: 0;">Comparison Result (Original vs Decoded Krita)</h3>
+                <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 250px; max-width: 400px;">
+                        <h4 style="margin: 0 0 5px 0;">Original (PNG)</h4>
+                        <canvas id="canvas-original" style="background: #333; border: 1px solid #444; width: 100%;"></canvas>
+                    </div>
+                    <div style="flex: 1; min-width: 250px; max-width: 400px;">
+                        <h4 style="margin: 0 0 5px 0;">Decoded (Krita)</h4>
+                        <canvas id="canvas-decoded" style="background: #333; border: 1px solid #444; width: 100%;"></canvas>
+                    </div>
+                </div>
+                <div id="pixel-diff-log" style="margin-top: 10px; color: #ffab40; font-weight: bold;"></div>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="/src/debug-ui.ts"></script>
+</body>
+</html>
