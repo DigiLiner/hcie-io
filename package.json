@@ -25,7 +25,6 @@
   "devDependencies": {
     "@types/jsdom": "^28.0.1",
     "@types/node": "^25.5.0",
-    "lzfjs": "^1.0.0",
     "jsdom": "^26.0.0",
     "typescript": "^6.0.2",
     "vite": "^6.2.1",
