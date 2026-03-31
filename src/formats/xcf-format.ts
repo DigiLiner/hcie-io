@@ -66,7 +66,8 @@ export class XcfFormat implements IImageFormat {
                 visible: (layer as any).isVisible !== false,
                 opacity: (layer as any).opacity / 255 || 1.0,
                 blendMode: (layer as any).blendMode || 'source-over',
-                x: 0, y: 0
+                x: (layer as any).x || 0,
+                y: (layer as any).y || 0
             });
         }
       } catch (e) {
@@ -95,6 +96,8 @@ export class XcfFormat implements IImageFormat {
     let opacity = 255;
     let visible = true;
     let mode = 0;
+    let x = 0;
+    let y = 0;
 
     // Parse layer properties
     while (current < buffer.byteLength) {
@@ -108,6 +111,10 @@ export class XcfFormat implements IImageFormat {
       if (propType === 6) opacity = view.getUint32(current + 8); // PROP_OPACITY
       if (propType === 7) visible = view.getUint32(current + 8) !== 0; // PROP_VISIBLE
       if (propType === 8) mode = view.getUint32(current + 8); // PROP_MODE
+      if (propType === 15) { // PROP_OFFSETS
+        x = view.getInt32(current + 8);
+        y = view.getInt32(current + 12);
+      }
       
       current += 8 + propLen;
     }
@@ -115,9 +122,6 @@ export class XcfFormat implements IImageFormat {
     const hierarchyPtr = getPtr(current);
     const bpp = view.getUint32(hierarchyPtr + 8);
     const levelPtr = getPtr(hierarchyPtr + 12); // Level 0
-    
-    const lWidth = view.getUint32(levelPtr);
-    const lHeight = view.getUint32(levelPtr + 4);
     
     const tilesWide = Math.ceil(width / 64);
     const tilesHigh = Math.ceil(height / 64);
@@ -141,40 +145,43 @@ export class XcfFormat implements IImageFormat {
         let tileDataLen = (nextPtr > tilePtr) ? (nextPtr - tilePtr) : (64 * 64 * bpp * 2);
         
         const rawData = new Uint8Array(buffer, tilePtr, Math.min(tileDataLen, buffer.byteLength - tilePtr));
-        const tilePixels = this.decodeTiledPlanar(rawData, bpp, 64, 64);
         
         const rw = Math.min(64, width - tx * 64);
         const rh = Math.min(64, height - ty * 64);
+        const tilePixels = this.decodeTiledPlanar(rawData, bpp, rw, rh);
+        
         const tileImgData = ctx.createImageData(rw, rh);
         
         // Reconstruct RGBA from decoded channels
         for (let py = 0; py < rh; py++) {
           for (let px = 0; px < rw; px++) {
-            const srcIdx = (py * 64 + px);
+            const srcIdx = (py * rw + px);
             const dstIdx = (py * rw + px) * 4;
             
-            if (bpp === 4) { // RGBA
-              tileImgData.data[dstIdx] = tilePixels[0][srcIdx];
-              tileImgData.data[dstIdx + 1] = tilePixels[1][srcIdx];
-              tileImgData.data[dstIdx + 2] = tilePixels[2][srcIdx];
-              tileImgData.data[dstIdx + 3] = tilePixels[3][srcIdx];
-            } else if (bpp === 3) { // RGB
-              tileImgData.data[dstIdx] = tilePixels[0][srcIdx];
-              tileImgData.data[dstIdx + 1] = tilePixels[1][srcIdx];
-              tileImgData.data[dstIdx + 2] = tilePixels[2][srcIdx];
-              tileImgData.data[dstIdx + 3] = 255;
-            } else if (bpp === 1) { // Gray
-              const v = tilePixels[0][srcIdx];
-              tileImgData.data[dstIdx] = v;
-              tileImgData.data[dstIdx + 1] = v;
-              tileImgData.data[dstIdx + 2] = v;
-              tileImgData.data[dstIdx + 3] = 255;
-            } else if (bpp === 2) { // GrayA
-              const v = tilePixels[0][srcIdx];
-              tileImgData.data[dstIdx] = v;
-              tileImgData.data[dstIdx + 1] = v;
-              tileImgData.data[dstIdx + 2] = v;
-              tileImgData.data[dstIdx + 3] = tilePixels[1][srcIdx];
+            if (tilePixels.length >= bpp) {
+                if (bpp === 4) { // RGBA
+                  tileImgData.data[dstIdx] = tilePixels[0][srcIdx];
+                  tileImgData.data[dstIdx + 1] = tilePixels[1][srcIdx];
+                  tileImgData.data[dstIdx + 2] = tilePixels[2][srcIdx];
+                  tileImgData.data[dstIdx + 3] = tilePixels[3][srcIdx];
+                } else if (bpp === 3) { // RGB
+                  tileImgData.data[dstIdx] = tilePixels[0][srcIdx];
+                  tileImgData.data[dstIdx + 1] = tilePixels[1][srcIdx];
+                  tileImgData.data[dstIdx + 2] = tilePixels[2][srcIdx];
+                  tileImgData.data[dstIdx + 3] = 255;
+                } else if (bpp === 1) { // Gray
+                  const v = tilePixels[0][srcIdx];
+                  tileImgData.data[dstIdx] = v;
+                  tileImgData.data[dstIdx + 1] = v;
+                  tileImgData.data[dstIdx + 2] = v;
+                  tileImgData.data[dstIdx + 3] = 255;
+                } else if (bpp === 2) { // GrayA
+                  const v = tilePixels[0][srcIdx];
+                  tileImgData.data[dstIdx] = v;
+                  tileImgData.data[dstIdx + 1] = v;
+                  tileImgData.data[dstIdx + 2] = v;
+                  tileImgData.data[dstIdx + 3] = tilePixels[1][srcIdx];
+                }
             }
           }
         }
@@ -187,6 +194,8 @@ export class XcfFormat implements IImageFormat {
     (imgData as any).isVisible = visible;
     (imgData as any).opacity = opacity;
     (imgData as any).blendMode = this.mapXcfBlendMode(mode);
+    (imgData as any).x = x;
+    (imgData as any).y = y;
     
     return imgData;
   }
@@ -202,29 +211,39 @@ export class XcfFormat implements IImageFormat {
       while (outPos < expectedChannelSize && inPos < data.length) {
         const b = data[inPos++];
         if (b < 127) {
+          // Repeat Run
           const count = b + 1;
-          for (let i = 0; i < count && outPos < expectedChannelSize; i++) {
-            out[outPos++] = data[inPos++];
+          const val = data[inPos++];
+          const toFill = Math.min(count, expectedChannelSize - outPos);
+          for (let i = 0; i < toFill; i++) {
+            out[outPos++] = val;
           }
         } else if (b === 127) {
+          // Long Repeat
           const count = (data[inPos] << 8 | data[inPos + 1]) + 1;
           inPos += 2;
-          for (let i = 0; i < count && outPos < expectedChannelSize; i++) {
-            out[outPos++] = data[inPos++];
+          const val = data[inPos++];
+          const toFill = Math.min(count, expectedChannelSize - outPos);
+          for (let i = 0; i < toFill; i++) {
+            out[outPos++] = val;
           }
         } else if (b === 128) {
+          // Long Literal
           const count = (data[inPos] << 8 | data[inPos + 1]) + 1;
           inPos += 2;
-          const val = data[inPos++];
-          for (let i = 0; i < count && outPos < expectedChannelSize; i++) {
-            out[outPos++] = val;
+          const toCopy = Math.min(count, expectedChannelSize - outPos);
+          for (let i = 0; i < toCopy; i++) {
+            out[outPos++] = data[inPos++];
           }
+          if (toCopy < count) inPos += (count - toCopy);
         } else {
-          const count = 256 - b + 1;
-          const val = data[inPos++];
-          for (let i = 0; i < count && outPos < expectedChannelSize; i++) {
-            out[outPos++] = val;
+          // Short Literal
+          const count = 256 - b;
+          const toCopy = Math.min(count, expectedChannelSize - outPos);
+          for (let i = 0; i < toCopy; i++) {
+            out[outPos++] = data[inPos++];
           }
+          if (toCopy < count) inPos += (count - toCopy);
         }
       }
       channels.push(out);
