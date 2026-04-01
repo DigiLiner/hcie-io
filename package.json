@@ -25,7 +25,10 @@
   "devDependencies": {
     "@types/jsdom": "^28.0.1",
     "@types/node": "^25.5.0",
+    "ag-psd": "^30.1.0",
+    "canvas": "^3.2.3",
     "jsdom": "^26.0.0",
+    "psd.js": "^3.9.2",
     "typescript": "^6.0.2",
     "vite": "^6.2.1",
     "vitest": "^3.0.8"

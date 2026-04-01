@@ -1,41 +1,58 @@
 import { IImageFormat, DecodedImage } from "../format-interface";
-import { loadPsdFile, convertPsdToLayers, savePsdFile } from "../psd-handler";
-import { g } from "@hcie/core";
+import { savePsdFile, loadPsdFile, convertPsdToLayers } from "../psd-handler";
 
 /**
- * Adapter for PSD files, wrapping the existing psd-handler.ts logic.
+ * Adapter for reading and writing Photoshop PSD files.
+ * Reading is done via psd.js, writing via ag-psd.
  */
 export class PsdFormat implements IImageFormat {
-  readonly name = "Photoshop Document";
+  readonly name = "Adobe Photoshop";
   readonly extensions = [".psd"];
   canRead = true;
   canWrite = true;
 
+  /**
+   * Reads a PSD file using the shared psd-handler.
+   */
   async read(buffer: ArrayBuffer): Promise<DecodedImage> {
     const psdObj = await loadPsdFile(buffer);
-    if (!psdObj) throw new Error("Failed to parse PSD");
+    if (!psdObj) throw new Error("Failed to load PSD file.");
 
-    const decodedLayers = await convertPsdToLayers(psdObj);
-    // Use the first layer's canvas dimensions if available
-    const width = decodedLayers[0]?.canvas?.width || 0;
-    const height = decodedLayers[0]?.canvas?.height || 0;
+    const layers = await convertPsdToLayers(psdObj);
+    if (!layers || layers.length === 0) {
+      throw new Error("No layers found in PSD file.");
+    }
 
+    const firstLayer = layers[0];
+    const width = (psdObj as any).width || (psdObj as any).tree?.().width || firstLayer.canvas.width;
+    const height = (psdObj as any).height || (psdObj as any).tree?.().height || firstLayer.canvas.height;
+
+    // Map LayerClass array to DecodedLayer array
     return {
       width,
       height,
-      layers: decodedLayers.map(layer => ({
-        name: layer.name,
-        canvas: layer.canvas,
-        visible: layer.visible,
-        opacity: layer.opacity,
-        blendMode: layer.blendMode,
-        x: 0, y: 0
+      layers: layers.map((l: any) => ({
+        name: l.name,
+        canvas: l.canvas,
+        visible: l.visible,
+        opacity: l.opacity,
+        blendMode: l.blendMode,
+        x: (l as any).x || 0,
+        y: (l as any).y || 0
       }))
     };
   }
 
-  async write(imageData: ImageData): Promise<ArrayBuffer> {
-    // Create a mock layer for ag-psd
+  async write(data: ImageData | DecodedImage): Promise<ArrayBuffer> {
+    if ((data as DecodedImage).layers) {
+        const decoded = data as DecodedImage;
+        const bytes = await savePsdFile(decoded.layers, decoded.composite);
+        if (!bytes) throw new Error("Failed to encode layered PSD");
+        return bytes.buffer as ArrayBuffer;
+    }
+
+    // Fallback for single ImageData
+    const imageData = data as ImageData;
     const canvas = document.createElement("canvas");
     canvas.width = imageData.width;
     canvas.height = imageData.height;
@@ -49,8 +66,8 @@ export class PsdFormat implements IImageFormat {
       opacity: 1,
       visible: true,
       blendMode: "source-over",
-      width: canvas.width,
-      height: canvas.height
+      x: 0,
+      y: 0
     };
 
     const bytes = await savePsdFile([mockLayer]);

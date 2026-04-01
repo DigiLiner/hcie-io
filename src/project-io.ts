@@ -187,8 +187,8 @@ export class ProjectIO {
         layer.visible = layerData.visible !== false;
         layer.opacity = layerData.opacity ?? 1.0;
         layer.blendMode = (layerData.blendMode as any) || 'source-over';
-        layer.x = layerData.x ?? 0;
-        layer.y = layerData.y ?? 0;
+        (layer as any).x = layerData.x ?? 0;
+        (layer as any).y = layerData.y ?? 0;
 
         if (canvasOrData instanceof ImageData) {
             (layer.ctx as CanvasRenderingContext2D).putImageData(canvasOrData, 0, 0);
@@ -233,12 +233,30 @@ export class ProjectIO {
         if (layer.visible) {
             ctx.globalAlpha = layer.opacity;
             ctx.globalCompositeOperation = (layer.blendMode as any) || "source-over";
-            ctx.drawImage(layer.canvas as HTMLCanvasElement, 0, 0);
+            // Use offsets if available (added dynamically by import logic or editor)
+            ctx.drawImage(layer.canvas as HTMLCanvasElement, (layer as any).x || 0, (layer as any).y || 0);
         }
     }
 
     const flattenedData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const buffer = await format.write(flattenedData);
+    
+    // Construct the full DecodedImage for formats that support layers
+    const decoded: DecodedImage = {
+        width: g.image_width,
+        height: g.image_height,
+        composite: flattenedData,
+        layers: layers.map(l => ({
+            name: l.name,
+            canvas: l.canvas,
+            visible: l.visible,
+            opacity: l.opacity,
+            blendMode: l.blendMode,
+            x: (l as any).x || 0,
+            y: (l as any).y || 0
+        }))
+    };
+
+    const buffer = await format.write(decoded);
     return new Uint8Array(buffer);
   }
 }

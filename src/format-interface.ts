@@ -1,8 +1,7 @@
-
-import { CanvasLike } from "@hcie/shared";
+import { BlendMode, CanvasLike } from '@hcie/shared';
 
 /**
- * Data structure for a single decoded layer.
+ * Represents a single layer in DecodedImage.
  */
 export interface LayerData {
   name: string;
@@ -15,47 +14,45 @@ export interface LayerData {
 }
 
 /**
- * Data structure for a decoded multi-layered image.
+ * Represents the structure returned after reading an image format.
  */
 export interface DecodedImage {
   width: number;
   height: number;
   layers: LayerData[];
+  /**
+   * Pre-rendered/flattened composite image for compatibility.
+   */
+  composite?: ImageData;
 }
 
 /**
- * Represents a single image file format (PNG, PSD, etc.)
+ * Filter definition for file dialogs.
+ */
+export interface FileFilter {
+  name: string;
+  extensions: string[];
+}
+
+/**
+ * Common interface for all image format adapters (PNG, JPEG, PSD, etc.).
  */
 export interface IImageFormat {
-  /**
-   * Human-readable name of the format (e.g., "Photoshop Image")
-   */
   readonly name: string;
-
-  /**
-   * List of file extensions including the dot (e.g., [".psd", ".psb"])
-   */
   readonly extensions: string[];
+  readonly canRead: boolean;
+  readonly canWrite: boolean;
 
   /**
-   * Whether this format is currently capable of reading files
-   */
-  canRead: boolean;
-
-  /**
-   * Whether this format is currently capable of writing files
-   */
-  canWrite: boolean;
-
-  /**
-   * Reads a file from a binary buffer and returns a decoded image object.
+   * Reads an image from an ArrayBuffer and returns a DecodedImage.
+   * @param buffer The input binary data.
    */
   read(buffer: ArrayBuffer): Promise<DecodedImage>;
 
   /**
-   * Writes image data to a binary buffer in the specific format.
-   * @param imageData The image data to write.
+   * Writes an image to an ArrayBuffer.
+   * @param data The image data or layered document to write.
    * @param options Format-specific options (e.g., { quality: 80 }).
    */
-  write(imageData: ImageData, options?: any): Promise<ArrayBuffer>;
+  write(data: ImageData | DecodedImage, options?: any): Promise<ArrayBuffer>;
 }

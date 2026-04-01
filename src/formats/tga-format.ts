@@ -4,6 +4,7 @@
  */
 
 import { IImageFormat, DecodedImage } from "../format-interface";
+import { ensureFlatImage } from "./utils";
 
 export class TgaFormat implements IImageFormat {
   readonly name = "Targa";
@@ -100,8 +101,9 @@ export class TgaFormat implements IImageFormat {
     data[outIndex+3] = a;
   }
 
-  async write(imageData: ImageData): Promise<ArrayBuffer> {
-    const { width, height, data } = imageData;
+  async write(data: ImageData | DecodedImage): Promise<ArrayBuffer> {
+    const imageData = ensureFlatImage(data);
+    const { width, height, data: pixelData } = imageData;
     const fileSize = 18 + (width * height * 4);
     const buffer = new ArrayBuffer(fileSize);
     const view = new DataView(buffer);
@@ -116,10 +118,10 @@ export class TgaFormat implements IImageFormat {
     // Pixel Data (BGRA)
     for (let i = 0; i < width * height; i++) {
       const offset = 18 + i * 4;
-      const r = data[i * 4];
-      const g = data[i * 4 + 1];
-      const b = data[i * 4 + 2];
-      const a = data[i * 4 + 3];
+      const r = pixelData[i * 4];
+      const g = pixelData[i * 4 + 1];
+      const b = pixelData[i * 4 + 2];
+      const a = pixelData[i * 4 + 3];
       
       view.setUint8(offset + 0, b);
       view.setUint8(offset + 1, g);

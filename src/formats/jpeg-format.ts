@@ -1,4 +1,5 @@
 import { IImageFormat, DecodedImage } from "../format-interface";
+import { ensureFlatImage } from "./utils";
 
 /**
  * Adapter for reading and writing JPEG images using the browser's Canvas API.
@@ -39,7 +40,8 @@ export class JpegFormat implements IImageFormat {
   /**
    * Writes a JPEG file by drawing it to a canvas and converting it to a blob.
    */
-  async write(imageData: ImageData, options: { quality?: number } = {}): Promise<ArrayBuffer> {
+  async write(data: ImageData | DecodedImage, options: { quality?: number } = {}): Promise<ArrayBuffer> {
+    const imageData = ensureFlatImage(data);
     const canvas = document.createElement("canvas");
     canvas.width = imageData.width;
     canvas.height = imageData.height;

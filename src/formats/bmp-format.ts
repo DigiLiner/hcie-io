@@ -4,6 +4,7 @@
  */
 
 import { IImageFormat, DecodedImage } from "../format-interface";
+import { ensureFlatImage } from "./utils";
 
 export class BmpFormat implements IImageFormat {
   readonly name = "Bitmap";
@@ -35,11 +36,12 @@ export class BmpFormat implements IImageFormat {
     };
   }
 
-  async write(imageData: ImageData): Promise<ArrayBuffer> {
+  async write(data: ImageData | DecodedImage): Promise<ArrayBuffer> {
+    const imageData = ensureFlatImage(data);
     // Some browsers support toBlob("image/bmp"), but many don't.
     // For universal support, we can use a very basic BMP encoder (uncompressed).
     
-    const { width, height, data } = imageData;
+    const { width, height, data: pixelData } = imageData;
     const rowSize = Math.floor((24 * width + 31) / 32) * 4;
     const pixelArraySize = rowSize * height;
     const fileSize = 54 + pixelArraySize;
@@ -72,9 +74,9 @@ export class BmpFormat implements IImageFormat {
         const offsetIn = ((height - 1 - y) * width + x) * 4;
         const offsetOut = 54 + y * rowSize + x * 3;
         
-        view.setUint8(offsetOut + 0, data[offsetIn + 2]); // B
-        view.setUint8(offsetOut + 1, data[offsetIn + 1]); // G
-        view.setUint8(offsetOut + 2, data[offsetIn + 0]); // R
+        view.setUint8(offsetOut + 0, pixelData[offsetIn + 2]); // B
+        view.setUint8(offsetOut + 1, pixelData[offsetIn + 1]); // G
+        view.setUint8(offsetOut + 2, pixelData[offsetIn + 0]); // R
       }
     }
     

@@ -4,6 +4,7 @@
  */
 
 import { IImageFormat, DecodedImage } from "../format-interface";
+import { ensureFlatImage } from "./utils";
 
 export class GifFormat implements IImageFormat {
   readonly name = "GIF Image";
@@ -35,7 +36,8 @@ export class GifFormat implements IImageFormat {
     };
   }
 
-  async write(imageData: ImageData): Promise<ArrayBuffer> {
+  async write(data: ImageData | DecodedImage): Promise<ArrayBuffer> {
+    const imageData = ensureFlatImage(data);
     const canvas = document.createElement("canvas");
     canvas.width = imageData.width;
     canvas.height = imageData.height;

@@ -6,6 +6,7 @@
 
 import { g, layers, LayerClass } from '@hcie/core';
 import type { BlendMode, ILayer } from '@hcie/core';
+import { LayerData } from './format-interface';
 
 // ─── Third-party library type shims ──────────────────────
 // psd.js and ag-psd are loaded via <script> tags in index.html
@@ -16,7 +17,8 @@ declare global {
   } | undefined;
   const psd: typeof PSD | undefined;
   const agPsd: {
-    writePsd(data: AgPsdData): ArrayBuffer | Uint8Array;
+    readPsd(data: ArrayBuffer | Uint8Array, options?: any): AgPsdData;
+    writePsd(data: AgPsdData, options?: any): ArrayBuffer | Uint8Array;
   } | undefined;
 
   interface Window {
@@ -51,9 +53,9 @@ interface PSDInstance {
 
 interface AgPsdLayer {
   name: string;
-  canvas: HTMLCanvasElement | OffscreenCanvas;
+  canvas: HTMLCanvasElement | OffscreenCanvas | ImageData;
   opacity: number;
-  visible: boolean;
+  hidden: boolean;
   blendMode: string;
   left: number;
   top: number;
@@ -63,7 +65,7 @@ interface AgPsdData {
   width: number;
   height: number;
   channels: number;
-  canvas: null;
+  canvas: HTMLCanvasElement | OffscreenCanvas | ImageData | null;
   children: AgPsdLayer[];
 }
 
@@ -81,17 +83,25 @@ export async function loadPsdFile(arrayBuffer: ArrayBuffer): Promise<PSDInstance
     const uint8 = new Uint8Array(arrayBuffer);
     const psdObj = new Lib(uint8);
     if (!psdObj.parse()) {
-      const msg = 'PSD parsing failed. The file may be corrupt or an unsupported format.';
-      console.error(msg);
-      alert(msg);
-      return null;
+      console.warn('PSD.js failed to parse. Trying ag-psd...');
+      throw new Error('PSD.js parse failure');
     }
     console.log('PSD loaded via psd');
     return psdObj;
   } catch (err) {
+    if (typeof agPsd !== 'undefined') {
+        try {
+            console.log('[PSD] Attempting read with ag-psd...');
+            const data = agPsd.readPsd(arrayBuffer);
+            // Wrap ag-psd data into a compatible structure or handle it specially
+            return { __isAgPsd: true, data } as any;
+        } catch (e) {
+            console.error('ag-psd also failed to read:', e);
+        }
+    }
     const msg = `Error reading PSD: ${(err as Error).message}`;
-    console.error(msg);
-    alert(msg);
+    console.error(msg, err);
+    if (typeof alert !== 'undefined') alert(msg);
     return null;
   }
 }
@@ -182,8 +192,39 @@ async function processNode(node: PSDNode, width: number, height: number): Promis
   return [layer];
 }
 
-export async function convertPsdToLayers(psdObj: PSDInstance): Promise<LayerClass[]> {
+export async function convertPsdToLayers(psdObj: any): Promise<LayerClass[]> {
   if (!psdObj) return [];
+
+  // Handle ag-psd fallback
+  if (psdObj.__isAgPsd && psdObj.data) {
+    const data: AgPsdData = psdObj.data;
+    g.image_width = data.width || 0;
+    g.image_height = data.height || 0;
+
+    const layers: LayerClass[] = [];
+    if (data.children) {
+        // ag-psd children are already in top-to-bottom order usually, 
+        // but HCIE expects bottom-to-top for internal layer list? 
+        // Let's check existing logic: [ ...children].reverse().
+        // So we reverse them here too.
+        for (const child of [...data.children].reverse()) {
+            if (child.canvas) {
+                const layer = new LayerClass(child.name || 'Layer', g.image_width, g.image_height);
+                layer.visible = !child.hidden;
+                layer.opacity = child.opacity != null ? child.opacity : 1;
+                // Simple blend mode mapping for ag-psd -> hcie
+                layer.blendMode = 'source-over'; 
+                
+                const ctx = (layer.ctx as CanvasRenderingContext2D);
+                ctx.drawImage(child.canvas as any, child.left || 0, child.top || 0);
+                layers.push(layer);
+            }
+        }
+    }
+    return layers;
+  }
+
+  // Original PSD.js logic
   const tree = psdObj.tree();
   g.image_width = tree.width;
   g.image_height = tree.height;
@@ -217,33 +258,80 @@ const REVERSE_BLEND_MAP: Record<string, string> = {
   'luminosity': 'luminosity',
 };
 
-export async function savePsdFile(layerList: ILayer[]): Promise<Uint8Array | null> {
+/**
+ * Ensures the given canvas-like object is an HTMLCanvasElement.
+ * Converts OffscreenCanvas or ImageData if necessary.
+ */
+function ensureHTMLCanvas(canvas: any): HTMLCanvasElement | null {
+  if (!canvas) return null;
+  if (canvas instanceof HTMLCanvasElement) return canvas;
+  
+  if (typeof HTMLCanvasElement === 'undefined') {
+    // We are likely in a Node/test environment without global Canvas.
+    // If it's something with width/height, we hope ag-psd can handle it or we mock it.
+    return canvas; 
+  }
+
+  const result = document.createElement('canvas');
+  result.width = canvas.width;
+  result.height = canvas.height;
+  const ctx = result.getContext('2d');
+  if (ctx) {
+      if (canvas instanceof ImageData) {
+          ctx.putImageData(canvas, 0, 0);
+      } else {
+        // Works for OffscreenCanvas or other CanvasImageSource
+        ctx.drawImage(canvas, 0, 0);
+      }
+  }
+  return result;
+}
+
+export async function savePsdFile(layerList: (ILayer | LayerData)[], composite?: ImageData): Promise<Uint8Array | null> {
   if (typeof agPsd === 'undefined') {
-    alert('PSD saving library (ag-psd) is not loaded. Please ensure ag-psd.js is available.');
+    const msg = 'PSD saving library (ag-psd) is not loaded. Please ensure ag-psd.js is available.';
+    console.error(msg);
+    if (typeof alert !== 'undefined') alert(msg);
     return null;
   }
   try {
+    // If we have a composite ImageData, convert it to a canvas for ag-psd metadata
+    let mainCanvas: any = null;
+    if (composite) {
+        mainCanvas = ensureHTMLCanvas(composite);
+    }
+
+    console.log(`[PSD] Encoding ${layerList.length} layers. Composite available: ${!!mainCanvas}`);
+
     const psdData: AgPsdData = {
       width: g.image_width,
       height: g.image_height,
       channels: 4,
-      canvas: null,
-      children: layerList.map(layer => ({
-        name: layer.name,
-        canvas: layer.canvas as HTMLCanvasElement,
-        opacity: layer.opacity,
-        visible: layer.visible,
-        blendMode: REVERSE_BLEND_MAP[layer.blendMode] || 'normal',
-        left: 0,
-        top: 0,
-      })),
+      canvas: mainCanvas,
+      children: layerList.map(layer => {
+          const layerCanvas = ensureHTMLCanvas(layer.canvas);
+          return {
+            name: layer.name,
+            canvas: layerCanvas as any,
+            opacity: layer.opacity,
+            hidden: !(layer as any).visible,
+            blendMode: REVERSE_BLEND_MAP[layer.blendMode] || 'normal',
+            left: (layer as any).x || 0,
+            top: (layer as any).y || 0,
+          };
+      }),
     };
-    const result = agPsd.writePsd(psdData);
-    const bytes = result instanceof Uint8Array ? result : new Uint8Array(result);
-    return bytes;
+    
+    // Some versions of ag-psd might need specific options for layered output
+    const options = {
+        generateThumbnail: true,
+        invalidateThumbnails: true,
+    };
+
+    const result = agPsd.writePsd(psdData, options);
+    return result instanceof ArrayBuffer ? new Uint8Array(result) : result;
   } catch (err) {
-    console.error('Error creating PSD file:', err);
-    alert(`Failed to create PSD file: ${(err as Error).message}`);
+    console.error('Error saving PSD:', err);
     return null;
   }
 }
